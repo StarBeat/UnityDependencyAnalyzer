@@ -1,7 +1,6 @@
 ﻿using MemoryPack;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
-using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
@@ -238,9 +237,11 @@ namespace AssetDependencyGraph
 
         private JsonSerializerOptions options = new JsonSerializerOptions { IncludeFields = true };
         [BsonDictionaryOptions(Representation = DictionaryRepresentation.ArrayOfArrays)]
+
         private ConcurrentDictionary<AssetIdentify, AssetNode> assetIdentify2AssetNodeDic = new();
         private ConcurrentDictionary<string, AssetIdentify> path2Id = new();
         private ConcurrentBag<(string path, bool isDir)> allPath = new();
+        
         private UnityLmdb unityLmdb;
         private static Regex isGuid = new Regex("^[\\da-f]{32}$");
 
@@ -261,7 +262,7 @@ namespace AssetDependencyGraph
             allPath.Add((path, Directory.Exists(path)));
         }
 
-        public static bool IsGuid(string str)
+        private static bool IsGuid(string str)
         {
             if (str.Length == 32)
             {
@@ -270,7 +271,7 @@ namespace AssetDependencyGraph
             return false;
         }
 
-        public (AssetIdentify id, AssetNode node) GetOrCreateFolderNode(string path)
+        private (AssetIdentify id, AssetNode node) GetOrCreateFolderNode(string path)
         {
             if (!path2Id.TryGetValue(path, out var k))
             {
@@ -294,7 +295,7 @@ namespace AssetDependencyGraph
             return (k, assetIdentify2AssetNodeDic[k]);
         }
 
-        public (AssetIdentify id, AssetNode node) GetOrCreateAssetNode(string path)
+        private (AssetIdentify id, AssetNode node) GetOrCreateAssetNode(string path)
         {
             if (!path2Id.TryGetValue(path, out var k))
             {
@@ -331,9 +332,15 @@ namespace AssetDependencyGraph
             return (k, assetIdentify2AssetNodeDic[k]);
         }
 
-        public void ResolveGuidDatabase()
+        private void ResolveGuidDatabase()
         {
             unityLmdb.ResolveGuidPath();
+        }
+
+        private void SaveGuidPathDic()
+        {
+            File.WriteAllBytes(Path.Combine(UnityLmdb.ProjPath, "Library", "guid2path.bin"), MemoryPackSerializer.Serialize(unityLmdb.Guid2Path));
+            File.WriteAllBytes(Path.Combine(UnityLmdb.ProjPath, "Library", "path2guid.bin"), MemoryPackSerializer.Serialize(unityLmdb.Path2Guid));
         }
 
         public async ValueTask AnalyzeMainProcess(string projectPath, string rootFolder, int processCnt = 8)
@@ -345,6 +352,9 @@ namespace AssetDependencyGraph
             Console.WriteLine($"遍历目录耗时:{sw.ElapsedMilliseconds / 1000f}s");
 
             sw.Restart();
+            path2Id = new(concurrencyLevel: Environment.ProcessorCount, capacity: allPath.Count);
+            assetIdentify2AssetNodeDic = new(concurrencyLevel: Environment.ProcessorCount, capacity: allPath.Count);
+
             var itemCnt = allPath.Count / processCnt;
             List<string> subProcessArgs = new();
             List<string> resultPaths = new();
@@ -365,7 +375,7 @@ namespace AssetDependencyGraph
                 File.WriteAllText(jsonPath, s);
             }
 
-            Task[] subProcessTask = new Task[subProcessArgs.Count];
+            Task[] subProcessTask = new Task[subProcessArgs.Count + 1];
             var exe = Environment.GetCommandLineArgs()[0];
             if (exe.EndsWith(".dll"))
             {
@@ -393,13 +403,20 @@ namespace AssetDependencyGraph
                 });
             }
 
-            Stopwatch sw1 = Stopwatch.StartNew();
-            sw1.Start();
-            ResolveGuidDatabase();
-            sw1.Stop();
-            Console.WriteLine($"加载数据库耗时:{sw1.ElapsedMilliseconds / 1000f}s");
+            subProcessTask[^1] = Task.Run(() =>
+            {
+                Stopwatch sw1 = Stopwatch.StartNew();
+                sw1.Start();
+                ResolveGuidDatabase();
+                SaveGuidPathDic();
+                sw1.Stop();
+                Console.WriteLine($"加载数据库耗时:{sw1.ElapsedMilliseconds / 1000f}s");
+            });
 
             Task.WaitAll(subProcessTask);
+            sw.Stop();
+            Console.WriteLine($"分析引用耗时:{sw.ElapsedMilliseconds / 1000f}s");
+            sw.Restart();
             List<Dictionary<string, HashSet<string>>> subProcessResults = new();
             foreach (var item in resultPaths)
             {
@@ -407,7 +424,7 @@ namespace AssetDependencyGraph
                 subProcessResults.Add(MemoryPackSerializer.Deserialize<Dictionary<string, HashSet<string>>>(s.AsSpan())!);
             }
             sw.Stop();
-            Console.WriteLine($"分析引用耗时:{sw.ElapsedMilliseconds / 1000f}s");
+            Console.WriteLine($"加载子线程结果耗时:{sw.ElapsedMilliseconds / 1000f}s");
             sw.Restart();
             Parallel.ForEach(subProcessResults, arg => ResolveSubProcessResult(arg));
             sw.Stop();
@@ -419,8 +436,10 @@ namespace AssetDependencyGraph
                 item.Value.DependentSet = item.Value.Dependent.ToHashSet();
             }
 
-            using var wr = File.OpenWrite(Path.Combine(UnityLmdb.ProjPath, "Library", "dependencyGraph.bin"));
-            await MemoryPackSerializer.SerializeAsync(wr, assetIdentify2AssetNodeDic);
+            {
+                using var wr = File.OpenWrite(Path.Combine(UnityLmdb.ProjPath, "Library", "dependencyGraph.bin"));
+                await MemoryPackSerializer.SerializeAsync(wr, assetIdentify2AssetNodeDic);
+            }
             sw.Stop();
             Console.WriteLine($"写入文件耗时:{sw.ElapsedMilliseconds / 1000f}s");
 
@@ -510,7 +529,6 @@ namespace AssetDependencyGraph
                 await MemoryPackSerializer.SerializeAsync(wr, path2Dependences);
             }
         }
-
 
         public void Analyze(string rootFolder)
         {

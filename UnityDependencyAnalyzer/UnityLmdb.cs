@@ -13,6 +13,9 @@ namespace AssetDependencyGraph
 
         private string dbFilePath = null!;
 
+        public Dictionary<string, string> Path2Guid { get => path2Guid; set => path2Guid = value; }
+        public Dictionary<string, string> Guid2Path { get => guid2Path; set => guid2Path = value; }
+
         public static byte[] Guid2LmdbKey(string guid)
         {
             var inputByteArray = new byte[guid.Length / 2];
@@ -69,7 +72,7 @@ namespace AssetDependencyGraph
             {
                 foreach (var item in cursor.AsEnumerable())
                 {
-                    guid2Path[LmdbKey2Guid(item.Item1.AsSpan().ToArray())] = Encoding.UTF8.GetString(item.Item2.AsSpan()).ToLowerInvariant().Trim('\0');
+                    Guid2Path[LmdbKey2Guid(item.Item1.AsSpan().ToArray())] = Encoding.UTF8.GetString(item.Item2.AsSpan()).ToLowerInvariant().Trim('\0');
                 }
             }
 
@@ -78,11 +81,10 @@ namespace AssetDependencyGraph
             {
                 foreach (var item in cursor.AsEnumerable())
                 {
-                    path2Guid[Encoding.UTF8.GetString(item.Item1.AsSpan()).ToLowerInvariant().Trim('\0')] = LmdbKey2Guid(item.Item2.AsSpan().ToArray());
+                    Path2Guid[Encoding.UTF8.GetString(item.Item1.AsSpan()).ToLowerInvariant().Trim('\0')] = LmdbKey2Guid(item.Item2.AsSpan().ToArray());
                 }
             }
         }
-
 
         public void ResolveGuidPathByDBPath(string dbPath)
         {
@@ -99,7 +101,7 @@ namespace AssetDependencyGraph
             {
                 foreach (var item in cursor.AsEnumerable())
                 {
-                    guid2Path[LmdbKey2Guid(item.Item1.AsSpan().ToArray())] = Encoding.UTF8.GetString(item.Item2.AsSpan()).ToLowerInvariant().Trim('\0');
+                    Guid2Path[LmdbKey2Guid(item.Item1.AsSpan().ToArray())] = Encoding.UTF8.GetString(item.Item2.AsSpan()).ToLowerInvariant().Trim('\0');
                 }
             }
 
@@ -108,7 +110,7 @@ namespace AssetDependencyGraph
             {
                 foreach (var item in cursor.AsEnumerable())
                 {
-                    path2Guid[Encoding.UTF8.GetString(item.Item1.AsSpan()).ToLowerInvariant().Trim('\0')] = LmdbKey2Guid(item.Item2.AsSpan().ToArray());
+                    Path2Guid[Encoding.UTF8.GetString(item.Item1.AsSpan()).ToLowerInvariant().Trim('\0')] = LmdbKey2Guid(item.Item2.AsSpan().ToArray());
                 }
             }
         }
@@ -116,7 +118,7 @@ namespace AssetDependencyGraph
         public ConcurrentBag<string> VerifyGUID()
         {
             ConcurrentBag<string> result = new ();
-            Parallel.ForEach(path2Guid, (item) =>
+            Parallel.ForEach(Path2Guid, (item) =>
             {
                 var f = item.Key + ".meta";
                 if (File.Exists(f))
@@ -134,14 +136,14 @@ namespace AssetDependencyGraph
 
         public string ResultToJson()
         {
-            return JsonSerializer.Serialize(path2Guid, new JsonSerializerOptions { IncludeFields = true });
+            return JsonSerializer.Serialize(Path2Guid, new JsonSerializerOptions { IncludeFields = true });
         }
 
         public string GetGuidByPath(string path)
         {
-            if (path2Guid.ContainsKey(path))
+            if (Path2Guid.ContainsKey(path))
             {
-                return path2Guid[path];
+                return Path2Guid[path];
             }
             else
             {
@@ -151,9 +153,9 @@ namespace AssetDependencyGraph
 
         public string GetPathByGuid(string guid)
         {
-            if (guid2Path.ContainsKey(guid))
+            if (Guid2Path.ContainsKey(guid))
             {
-                return guid2Path[guid];
+                return Guid2Path[guid];
             }
             else
             {

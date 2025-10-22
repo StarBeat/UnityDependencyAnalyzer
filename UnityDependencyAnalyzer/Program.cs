@@ -42,7 +42,7 @@ switch (Environment.GetCommandLineArgs()[1])
             }
             else
             {
-                await new DependencyAnalyzer().AnalyzeMainProcess(UnityLmdb.ProjPath, Utils.DataPath, 10);
+                await new DependencyAnalyzer().AnalyzeMainProcess(UnityLmdb.ProjPath, Utils.DataPath, Environment.ProcessorCount);
             }
             break;
         }

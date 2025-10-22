@@ -1,7 +1,8 @@
+using MemoryPack;
+using Sirenix.Utilities;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
-using System.Threading.Tasks;
 using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEditor.UIElements;
@@ -33,6 +34,7 @@ namespace AssetDependencyGraph
 
             background.StretchToParentSize();
         }
+
     }
 
     public class AssetGroup
@@ -72,7 +74,9 @@ namespace AssetDependencyGraph
 
         private static Dictionary<AssetIdentify, AssetNode> assetId2NodeDic;
         private static Dictionary<string, AssetIdentify> path2NodeIdDic;
-        
+        private static Dictionary<string, string> guid2PathDic = new();
+        private static Dictionary<string, string> path2GuidDic = new();
+
         static AssetNode FindAssetNode(string path)
         {
             if (path2NodeIdDic.TryGetValue(path, out var id))
@@ -109,25 +113,71 @@ namespace AssetDependencyGraph
             return false;
         }
 
+        private static string GUIDToPath(string guid)
+        {
+            if(guid2PathDic != null)
+            {
+                if (guid2PathDic.ContainsKey(guid))
+                {
+                    return guid2PathDic[guid];
+                }
+            }
+            return AssetDatabase.GUIDToAssetPath(guid);
+        }
+
+        private static string PathToGUID(string path)
+        {
+            if(path2NodeIdDic != null)
+            {
+                if(path2NodeIdDic.ContainsKey(path))
+                {
+                    return path2GuidDic[path];
+                }
+            }
+
+            return AssetDatabase.AssetPathToGUID(path);
+        }
+
         void ResolveDependency()
         {
-            var dependencyGraph = Path.Combine(Application.dataPath.Replace("Assets", ""), "Library", "dependencyGraph.json");
+            System.Diagnostics.Stopwatch stopwatch = new();
+
+            var projectPath = Application.dataPath.Replace("Assets", "");
+            var libraryPath = Path.Combine(projectPath, "Library");
+            var dependencyGraph = Path.Combine(libraryPath, "dependencyGraph.bin");
             if (!File.Exists(dependencyGraph))
             {
                 EditorUtility.DisplayDialog("提示", "需要解析引用关系", "确认");
                 return;
             }
-            var js = File.ReadAllText(dependencyGraph);
-            assetId2NodeDic = JsonSerializer.Deserialize<Dictionary<AssetIdentify, AssetNode>>(js, options: new JsonSerializerOptions()
+
+            var bytes = File.ReadAllBytes(dependencyGraph);
+            stopwatch.Restart();
+
+            assetId2NodeDic = MemoryPackSerializer.Deserialize<Dictionary<AssetIdentify, AssetNode>>(bytes.AsSpan());
+
+            var guid2pathBinPath = Path.Combine(libraryPath, "guid2path.bin");
+            if (File.Exists(guid2pathBinPath))
             {
-                IncludeFields = true,
-                Converters = { new AssetIdentifyJsonConverter(), new AssetNodeJsonConverter() }
-            });
+                guid2PathDic =  MemoryPackSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllBytes(guid2pathBinPath));
+            }
+
+            var path2guidBinPath = Path.Combine(libraryPath, "path2guid.bin");
+            if (File.Exists(path2guidBinPath))
+            {
+                path2GuidDic = MemoryPackSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllBytes(path2guidBinPath));
+            }
+
+            stopwatch.Stop();
+            Debug.Log($"Deserialize {stopwatch.ElapsedMilliseconds}");
+            stopwatch.Restart();
             path2NodeIdDic = new();
             foreach (var node in assetId2NodeDic)
             {
                 path2NodeIdDic[node.Key.Path] = node.Key;
             }
+            stopwatch.Stop();
+            Debug.Log($"ResolveDependency {stopwatch.ElapsedMilliseconds}");
         }
 
         void CreateGraph()
@@ -168,7 +218,7 @@ namespace AssetDependencyGraph
             toolbar.Add(options);
             toolbar.Add(new Button(ExploreAsset)
             {
-                text = "Explore Asset",
+                text = "展示选择对象引用关系",
             });
             toolbar.Add(new Button(ClearGraph)
             {
@@ -184,21 +234,21 @@ namespace AssetDependencyGraph
             });
             toolbar.Add(new Button(() =>
             {
-                Task.Run(() =>
+                System.Diagnostics.Stopwatch stopwatch = new();
+                stopwatch.Restart();
+                System.Diagnostics.Process.Start(startInfo: new()
                 {
-                    System.Diagnostics.Process.Start(startInfo: new()
-                    {
-                        FileName = $"{Application.dataPath}/../Tools/UnityDependencyAnalyzer.exe",
-                        Arguments = $"{Application.dataPath.Replace("Assets", "")} \" \" \" \" localhost ",
-                        UseShellExecute = true,
-                    })
-                    .WaitForExit();
-                    
-                    ResolveDependency();
-                });
+                    FileName = $"{Application.dataPath}/../Tools/UnityDependencyAnalyzer.exe",
+                    Arguments = $"-reference {Application.dataPath.Replace("Assets", "")} \" \" \" \" localhost ",
+                    UseShellExecute = true,
+                })
+                .WaitForExit();
+                stopwatch.Stop();
+                Debug.Log($"resolve {stopwatch.ElapsedMilliseconds}");
+                ResolveDependency();
             })
             {
-                text = "Analyze Reference"
+                text = "分析或更新引用"
             });
 
             var ts = new ToolbarSearchField();
@@ -271,13 +321,32 @@ namespace AssetDependencyGraph
             return toolbar;
         }
 
+        private static string GetAnalyzedAssetPath(UnityEngine.Object obj)
+        {
+            return AssetDatabase.GetAssetPath(obj).Replace('\\', '/').ToLowerInvariant();
+        }
+
+        private static void OnDeleteAsset(UnityEngine.Object asset)
+        {
+            var path = GetAnalyzedAssetPath(asset);
+            var delAssetNode = FindAssetNode(path);
+            foreach (var dependency in delAssetNode.DependencySet) 
+            {
+                assetId2NodeDic[dependency].DependentSet.Remove(delAssetNode.Self);
+            }
+
+            assetId2NodeDic.Remove(delAssetNode.Self);
+            path2NodeIdDic.Remove(path);
+        }
+
         private void ExploreAsset()
         {
             Object[] objs = Selection.objects;
-            if(path2NodeIdDic == null || path2NodeIdDic.Count == 0)
+            if (path2NodeIdDic == null || path2NodeIdDic.Count == 0)
             {
                 ResolveDependency();
             }
+        
             foreach (var obj in objs)
             {
                 //Prevent readding same object
@@ -289,7 +358,7 @@ namespace AssetDependencyGraph
                 selectedObjects.Add(obj);
 
                 AssetGroup AssetGroup = new AssetGroup();
-                AssetGroup.AssetNode = FindAssetNode(AssetDatabase.GetAssetPath(obj).Replace('\\', '/').ToLowerInvariant());
+                AssetGroup.AssetNode = FindAssetNode(GetAnalyzedAssetPath(obj));
                 assetGroups.Add(AssetGroup);
 
                 // assetPath will be empty if obj is null or isn't an asset (a scene object)
@@ -400,11 +469,9 @@ namespace AssetDependencyGraph
                 }
 
                 var fullPath = dependAssetId.Path;
-                Debug.Log(fullPath);
                 if (IsGuid(fullPath))
                 {
-                    fullPath = AssetDatabase.GUIDToAssetPath(fullPath);
-                    Debug.Log(fullPath);
+                    fullPath = GUIDToPath(fullPath);
                 }
                 var obj = AssetDatabase.LoadMainAssetAtPath(fullPath);
                 if(obj == null)
@@ -493,11 +560,9 @@ namespace AssetDependencyGraph
                     continue;
                 }
                 var fullPath = dependAssetId.Path;
-                Debug.Log(fullPath);
                 if (IsGuid(fullPath))
                 {
-                    fullPath = AssetDatabase.GUIDToAssetPath(fullPath);
-                    Debug.Log(fullPath);
+                    fullPath = GUIDToPath(fullPath);
                 }
                 var obj = AssetDatabase.LoadMainAssetAtPath(fullPath);
                 if (obj == null)
@@ -606,13 +671,13 @@ namespace AssetDependencyGraph
                 {
                     title = obj.name,
                     style =
-                {
-                    width = NodeWidth
-                }
+                    {
+                        width = NodeWidth
+                    }
                 };
 
                 objNode.extensionContainer.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f, 0.8f);
-
+                
                 #region Select button
                 objNode.titleContainer.Add(new Button(() =>
                 {
@@ -648,6 +713,7 @@ namespace AssetDependencyGraph
                         {
                             if (EditorUtility.DisplayDialog("提示", "当前 asset 没有引用,是否直接删除", "确认删除", "取消"))
                             {
+                                OnDeleteAsset(obj);
                                 AssetDatabase.DeleteAsset(AssetDatabase.GetAssetPath(obj));
                             }
                         }
@@ -708,15 +774,23 @@ namespace AssetDependencyGraph
                 {
                     style =
                     {
-                    paddingBottom = 4.0f,
-                    paddingTop = 4.0f,
-                    paddingLeft = 4.0f,
-                    paddingRight = 4.0f,
-                    backgroundColor = GetColorByAssetType(typeName)
-        }
+                        paddingBottom = 4.0f,
+                        paddingTop = 4.0f,
+                        paddingLeft = 4.0f,
+                        paddingRight = 4.0f,
+                        backgroundColor = GetColorByAssetType(typeName)
+                    }
                 };
 
                 objNode.extensionContainer.Add(typeContainer);
+                objNode.RegisterCallback<FocusInEvent>(e =>
+                {
+                });
+
+                objNode.RegisterCallback<FocusOutEvent>(e =>
+                {
+
+                });
 
                 #region Node Icon, replaced with color 
                 //Texture assetTexture = AssetPreview.GetAssetPreview(obj);
@@ -755,19 +829,19 @@ namespace AssetDependencyGraph
                 {
                     Port port = objNode.InstantiatePort(Orientation.Horizontal, Direction.Input, Port.Capacity.Single, typeof(Object));
                     port.Add(new Button(() =>
-                    {
-                        CreateDependentNodes(assetGroup, assetNode, fullPathNodeLookup[fullPath], assetGroup.GroupNode, (int)fullPathNodeLookup[fullPath].userData - 1);
-                        EditorApplication.delayCall += () => ResetAllNodes();
-                    })
-                    {
-                        style =
-                    {
-                        height = 16.0f,
-                        alignSelf = Align.Center,
-                        alignItems = Align.Center
-                    },
-                        text = "展开"
-                    });
+                        {
+                            CreateDependentNodes(assetGroup, assetNode, fullPathNodeLookup[fullPath], assetGroup.GroupNode, (int)fullPathNodeLookup[fullPath].userData - 1);
+                            EditorApplication.delayCall += () => ResetAllNodes();
+                        })
+                        {
+                            style =
+                        {
+                            height = 16.0f,
+                            alignSelf = Align.Center,
+                            alignItems = Align.Center
+                        },
+                            text = "展开"
+                        });
                     port.portName = dependentAmount + "个引用";
                     objNode.inputContainer.Add(port);
                 }
@@ -777,20 +851,19 @@ namespace AssetDependencyGraph
                 {
                     Port port = objNode.InstantiatePort(Orientation.Horizontal, Direction.Output, Port.Capacity.Single, typeof(Object));
                     port.Add(new Button(() =>
-                    {
-                        CreateDependencyNodes(assetGroup, assetNode, fullPathNodeLookup[fullPath], assetGroup.GroupNode, (int)fullPathNodeLookup[fullPath].userData + 1);
-                        EditorApplication.delayCall += () => ResetAllNodes();
-
-                    })
-                    {
-                        style =
-                    {
-                        height = 16.0f,
-                        alignSelf = Align.Center,
-                        alignItems = Align.FlexEnd
-                    },
-                        text = "展开"
-                    });
+                        {
+                            CreateDependencyNodes(assetGroup, assetNode, fullPathNodeLookup[fullPath], assetGroup.GroupNode, (int)fullPathNodeLookup[fullPath].userData + 1);
+                            EditorApplication.delayCall += () => ResetAllNodes();
+                        })
+                        {
+                            style =
+                            {
+                                height = 16.0f,
+                                alignSelf = Align.Center,
+                                alignItems = Align.FlexEnd
+                            },
+                            text = "展开"
+                        });
                     port.portName = dependencyAmount + "个依赖";
                     objNode.outputContainer.Add(port);
                     objNode.RefreshPorts();

@@ -1,7 +1,9 @@
 ﻿using MemoryPack;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,9 +16,7 @@ namespace AssetDependencyGraph
     {
         public string Path = null!;
         public string AssetType = null!;
-        [AllowNull]
         public string Guid;
-        [AllowNull]
         public string Md5;
     }
 
@@ -49,8 +49,8 @@ namespace AssetDependencyGraph
     [MemoryPackable]
     public partial class AssetNode
     {
-        public AssetIdentify Self=null!;
-        public string AssetType=null!;
+        public AssetIdentify Self = null!;
+        public string AssetType = null!;
         [JsonIgnore]
         [MemoryPackIgnore]
         public ConcurrentBag<AssetIdentify> Dependencies = new();
@@ -104,7 +104,7 @@ namespace AssetDependencyGraph
         public AssetDependencyGraphDB(string user, string passwd, string ip)
         {
             MongoClientSettings settings;
-            if(string.IsNullOrWhiteSpace(user) && !string.IsNullOrEmpty(ip))
+            if (string.IsNullOrWhiteSpace(user) && !string.IsNullOrEmpty(ip))
             {
                 settings = MongoClientSettings.FromUrl(new MongoUrl($"mongodb://{ip}:27017/"));
             }
@@ -163,10 +163,10 @@ namespace AssetDependencyGraph
                 case FolderNode folderNode:
                     {
                         var filter = Builders<FolderNode>.Filter.And(
-                            Builders<FolderNode>.Filter.Eq(fn=>fn.Self.Path,node.Self.Path)
+                            Builders<FolderNode>.Filter.Eq(fn => fn.Self.Path, node.Self.Path)
                             );
                         var found = FolderNodes.Find(filter);
-                        if (found == null || found.CountDocuments() == 0) 
+                        if (found == null || found.CountDocuments() == 0)
                         {
                             FolderNodes.InsertOne(folderNode);
                         }
@@ -279,7 +279,7 @@ namespace AssetDependencyGraph
 
         public AssetNode Find(string path)
         {
-            if(findCacheDic.TryGetValue(path, out var assetNode))
+            if (findCacheDic.TryGetValue(path, out var assetNode))
             {
                 return assetNode;
             }
@@ -294,7 +294,7 @@ namespace AssetDependencyGraph
                 findCacheDic[path] = assetNode;
                 return assetNode;
             }
-            
+
             var filter1 = Builders<PackageNode>.Filter.And(
                           Builders<PackageNode>.Filter.Eq(fn => fn.Self.Path, path)
                           );
