@@ -2,7 +2,7 @@
   "profiles": {
     "UnityDependencyAnalyzer": {
       "commandName": "Project",
-      "commandLineArgs": "G:/G_android \" \" \" \" localhost"
+      "commandLineArgs": "-reference G:/G_android \" \" \" \" localhost"
     }
   }
 }

@@ -1,4 +1,5 @@
-﻿using MongoDB.Bson.Serialization.Attributes;
+﻿using MemoryPack;
+using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
 using System;
 using System.Collections.Concurrent;
@@ -239,7 +240,7 @@ namespace AssetDependencyGraph
         [BsonDictionaryOptions(Representation = DictionaryRepresentation.ArrayOfArrays)]
         private ConcurrentDictionary<AssetIdentify, AssetNode> assetIdentify2AssetNodeDic = new();
         private ConcurrentDictionary<string, AssetIdentify> path2Id = new();
-        private List<(string path, bool isDir)> allPath = new();
+        private ConcurrentBag<(string path, bool isDir)> allPath = new();
         private UnityLmdb unityLmdb;
         private static Regex isGuid = new Regex("^[\\da-f]{32}$");
 
@@ -335,19 +336,19 @@ namespace AssetDependencyGraph
             unityLmdb.ResolveGuidPath();
         }
 
-        public void AnalyzeMainProcess(string rootFolder, int processCnt = 8)
+        public async ValueTask AnalyzeMainProcess(string projectPath, string rootFolder, int processCnt = 8)
         {
             Stopwatch sw = Stopwatch.StartNew();
             sw.Start();
-            Utils.TraverseDirectory(rootFolder, Visivt, -1);
+            Utils.TraverseDirectoryParallel(rootFolder, Visivt);
             sw.Stop();
             Console.WriteLine($"遍历目录耗时:{sw.ElapsedMilliseconds / 1000f}s");
 
             sw.Restart();
             var itemCnt = allPath.Count / processCnt;
             List<string> subProcessArgs = new();
-            List<string> resultJsonPaths = new();
-            var projectPath = Environment.GetCommandLineArgs()[1];
+            List<string> resultPaths = new();
+            var allPathArray = allPath.ToArray();
             for (int i = 0; i < processCnt; i++)
             {
                 int r = (itemCnt * (i + 1));
@@ -355,12 +356,12 @@ namespace AssetDependencyGraph
                 {
                     r = allPath.Count;
                 }
-
-                var s = JsonSerializer.Serialize(allPath[(i * itemCnt)..r], options);
+                
+                var s = JsonSerializer.Serialize(allPathArray[(i * itemCnt)..r], options);
                 var jsonPath = Path.Combine(Path.GetTempPath(), $"path{i}.json");
-                var resulJsonPath = Path.Combine(Path.GetTempPath(), $"result{i}.json");
-                resultJsonPaths.Add(resulJsonPath);
-                subProcessArgs.Add($"-reference {projectPath} SubProcess {jsonPath} {resulJsonPath}");
+                var resulPath = Path.Combine(Path.GetTempPath(), $"result{i}.bin");
+                resultPaths.Add(resulPath);
+                subProcessArgs.Add($"-reference {projectPath} SubProcess {jsonPath} {resulPath}");
                 File.WriteAllText(jsonPath, s);
             }
 
@@ -400,10 +401,10 @@ namespace AssetDependencyGraph
 
             Task.WaitAll(subProcessTask);
             List<Dictionary<string, HashSet<string>>> subProcessResults = new();
-            foreach (var item in resultJsonPaths)
+            foreach (var item in resultPaths)
             {
-                var s = File.ReadAllText(item);
-                subProcessResults.Add(JsonSerializer.Deserialize<Dictionary<string, HashSet<string>>>(s, options)!);
+                var s = File.ReadAllBytes(item);
+                subProcessResults.Add(MemoryPackSerializer.Deserialize<Dictionary<string, HashSet<string>>>(s.AsSpan())!);
             }
             sw.Stop();
             Console.WriteLine($"分析引用耗时:{sw.ElapsedMilliseconds / 1000f}s");
@@ -418,14 +419,10 @@ namespace AssetDependencyGraph
                 item.Value.DependentSet = item.Value.Dependent.ToHashSet();
             }
 
-            string js = JsonSerializer.Serialize(assetIdentify2AssetNodeDic, options: new()
-            {
-                IncludeFields = true,
-                Converters = { new AssetIdentifyJsonConverter(), new AssetNodeJsonConverter() }
-            });
-
-
-            File.WriteAllText(Path.Combine(UnityLmdb.ProjPath, "Library", "dependencyGraph.json"), js);
+            using var wr = File.OpenWrite(Path.Combine(UnityLmdb.ProjPath, "Library", "dependencyGraph.bin"));
+            await MemoryPackSerializer.SerializeAsync(wr, assetIdentify2AssetNodeDic);
+            sw.Stop();
+            Console.WriteLine($"写入文件耗时:{sw.ElapsedMilliseconds / 1000f}s");
 
             //AssetDependencyGraphDB db = new AssetDependencyGraphDB(Environment.GetCommandLineArgs()[2], Environment.GetCommandLineArgs()[3], Environment.GetCommandLineArgs()[4]);
             //sw.Restart();
@@ -434,8 +431,8 @@ namespace AssetDependencyGraph
             //{
             //    db.Insert(item.Value);
             //});
-            sw.Stop(); 
-            Console.WriteLine($"更新数据库:{sw.ElapsedMilliseconds / 1000f}s");
+            //sw.Stop(); 
+            //Console.WriteLine($"更新数据库:{sw.ElapsedMilliseconds / 1000f}s");
         }
 
         private void ResolveSubProcessResult(Dictionary<string, HashSet<string>> subProcessResult)
@@ -491,25 +488,26 @@ namespace AssetDependencyGraph
             });
         }
 
-        public void AnalyzeSubProcess(string pathFile, string resultFilePath)
+        public async ValueTask AnalyzeSubProcess(string pathFile, string resultFilePath)
         {
             var s = File.ReadAllText(pathFile);
-            allPath = JsonSerializer.Deserialize<List<(string path, bool isDir)>>(s, options)!;
+            var allPath = JsonSerializer.Deserialize<List<(string path, bool isDir)>>(s, options)!;
             if (allPath != null)
             {
-                foreach (var item in allPath)
+                for (int i = 0; i < allPath.Count; i++)
                 {
+                    var path = allPath[i];
                     foreach (var item1 in dependencyAnalysisDic)
                     {
-                        if (item1.Key(item))
+                        if (item1.Key(path))
                         {
-                            item1.Value.Analyze(item.path, path2Dependences);
+                            item1.Value.Analyze(path.path, path2Dependences);
                         }
                     }
                 }
 
-                var json = JsonSerializer.Serialize(path2Dependences, options);
-                File.WriteAllText(resultFilePath, json);
+                using var wr = File.OpenWrite(resultFilePath);
+                await MemoryPackSerializer.SerializeAsync(wr, path2Dependences);
             }
         }
 

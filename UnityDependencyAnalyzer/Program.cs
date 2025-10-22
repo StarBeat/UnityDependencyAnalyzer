@@ -34,14 +34,15 @@ switch (Environment.GetCommandLineArgs()[1])
         {
             UnityLmdb.ProjPath = Environment.GetCommandLineArgs()[2];
             Utils.DataPath = Path.Combine(UnityLmdb.ProjPath, "Assets").ToUniversalPath();
-
+            Console.WriteLine(string.Join(' ', Environment.GetCommandLineArgs()));
             if (Environment.GetCommandLineArgs().Length > 3 && Environment.GetCommandLineArgs()[3].Equals("SubProcess"))
             {
-                new DependencyAnalyzer().AnalyzeSubProcess(Environment.GetCommandLineArgs()[4], Environment.GetCommandLineArgs()[5]);
+                //System.Diagnostics.Process.GetCurrentProcess().ProcessorAffinity = (IntPtr)0x00FF;
+                await new DependencyAnalyzer().AnalyzeSubProcess(Environment.GetCommandLineArgs()[4], Environment.GetCommandLineArgs()[5]);
             }
             else
             {
-                new DependencyAnalyzer().AnalyzeMainProcess(Utils.DataPath, 10);
+                await new DependencyAnalyzer().AnalyzeMainProcess(UnityLmdb.ProjPath, Utils.DataPath, 10);
             }
             break;
         }

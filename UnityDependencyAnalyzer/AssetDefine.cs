@@ -1,4 +1,5 @@
-﻿using MongoDB.Bson.Serialization.Attributes;
+﻿using MemoryPack;
+using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -8,7 +9,8 @@ using System.Text.Json.Serialization;
 namespace AssetDependencyGraph
 {
     [BsonIgnoreExtraElements]
-    public class AssetIdentify
+    [MemoryPackable]
+    public partial class AssetIdentify
     {
         public string Path = null!;
         public string AssetType = null!;
@@ -44,7 +46,8 @@ namespace AssetDependencyGraph
     }
 
     [BsonIgnoreExtraElements]
-    public class AssetNode
+    [MemoryPackable]
+    public partial class AssetNode
     {
         public AssetIdentify Self=null!;
         public string AssetType=null!;

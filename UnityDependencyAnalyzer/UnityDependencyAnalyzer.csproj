@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\UnityFileDumper\UnityFileDumper.csproj" />
   </ItemGroup>
 
@@ -50,5 +54,9 @@
       <HintPath>Libs\ZstdSharp.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy /Y $(ProjectDir)\Libs\lmdb.dll $(TargetDir)&#xD;&#xA;copy /Y $(ProjectDir)\Libs\UnityFileSystemApi.dll $(TargetDir)" />
+  </Target>
 
 </Project>
