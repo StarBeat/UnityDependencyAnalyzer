@@ -25,9 +25,27 @@ namespace AssetDependencyGraph
             }
         }
 
+        public static void TraverseDirectoryParallel(string path, Action<string> action)
+        {
+            Parallel.ForEach(Directory.EnumerateFileSystemEntries(path, "*", SearchOption.AllDirectories), action);
+        }
+
         public static void TraverseDirectory(string path, Action<string> action, int depth = 1)
         {
-            if(depth == 0)
+            //if (depth == -1)
+            //{
+            //    //foreach (string file in Directory.EnumerateFiles(path, "*.*", SearchOption.AllDirectories))
+            //    //{
+            //    //    action.Invoke(file);
+            //    //}
+
+            //    //foreach (string directory in Directory.EnumerateDirectories(path, "*.*", SearchOption.AllDirectories))
+            //    //{
+            //    //    action.Invoke(directory);
+            //    //}
+            //}
+
+            if (depth == 0)
             {
                 return;
             }
