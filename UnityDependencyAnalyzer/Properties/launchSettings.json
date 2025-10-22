@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UnityDependencyAnalyzer": {
+      "commandName": "Project",
+      "commandLineArgs": "G:/G_android \" \" \" \" localhost"
+    }
+  }
+}

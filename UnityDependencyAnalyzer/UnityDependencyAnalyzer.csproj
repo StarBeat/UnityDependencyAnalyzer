@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>False</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UnityFileDumper\UnityFileDumper.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="AWSSDK.Core">
+      <HintPath>Libs\AWSSDK.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Crc32.NET">
+      <HintPath>Libs\Crc32.NET.dll</HintPath>
+    </Reference>
+    <Reference Include="DnsClient">
+      <HintPath>Libs\DnsClient.dll</HintPath>
+    </Reference>
+    <Reference Include="LightningDB">
+      <HintPath>Libs\LightningDB.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>Libs\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="MongoDB.Bson">
+      <HintPath>Libs\MongoDB.Bson.dll</HintPath>
+    </Reference>
+    <Reference Include="MongoDB.Driver">
+      <HintPath>Libs\MongoDB.Driver.dll</HintPath>
+    </Reference>
+    <Reference Include="MongoDB.Driver.Core">
+      <HintPath>Libs\MongoDB.Driver.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="MongoDB.Libmongocrypt">
+      <HintPath>Libs\MongoDB.Libmongocrypt.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCompress">
+      <HintPath>Libs\SharpCompress.dll</HintPath>
+    </Reference>
+    <Reference Include="Snappier">
+      <HintPath>Libs\Snappier.dll</HintPath>
+    </Reference>
+    <Reference Include="ZstdSharp">
+      <HintPath>Libs\ZstdSharp.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
