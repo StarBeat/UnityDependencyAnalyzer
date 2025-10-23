@@ -152,7 +152,7 @@ namespace UnityFileApi
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
             EntryPoint = "UFS_MountArchive")]
-        public static extern ReturnCode MountArchive([MarshalAs(UnmanagedType.LPStr)] string path, [MarshalAs(UnmanagedType.LPStr)] string mountPoint, out UnityArchiveHandle handle);
+        public static extern ReturnCode MountArchive([MarshalAs(UnmanagedType.LPUTF8Str)] string path, [MarshalAs(UnmanagedType.LPUTF8Str)] string mountPoint, out UnityArchiveHandle handle);
 
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
@@ -172,14 +172,14 @@ namespace UnityFileApi
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
             EntryPoint = "UFS_CreateArchive")]
-        public static extern ReturnCode CreateArchive([MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPStr)] string[] sourceFiles,
-            [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPStr)] string[] aliases, bool[] isSerializedFile, int count,
-            [MarshalAs(UnmanagedType.LPStr)] string archiveFile, CompressionType compression, out int crc);
+        public static extern ReturnCode CreateArchive([MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] sourceFiles,
+            [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] aliases, bool[] isSerializedFile, int count,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string archiveFile, CompressionType compression, out int crc);
 
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
             EntryPoint = "UFS_OpenFile")]
-        public static extern ReturnCode OpenFile([MarshalAs(UnmanagedType.LPStr)] string path, out UnityFileHandle handle);
+        public static extern ReturnCode OpenFile([MarshalAs(UnmanagedType.LPUTF8Str)] string path, out UnityFileHandle handle);
 
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl, EntryPoint = "UFS_ReadFile")]
@@ -204,7 +204,7 @@ namespace UnityFileApi
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
             EntryPoint = "UFS_OpenSerializedFile")]
-        public static extern ReturnCode OpenSerializedFile([MarshalAs(UnmanagedType.LPStr)] string path, out SerializedFileHandle handle);
+        public static extern ReturnCode OpenSerializedFile([MarshalAs(UnmanagedType.LPUTF8Str)] string path, out SerializedFileHandle handle);
 
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
@@ -239,8 +239,8 @@ namespace UnityFileApi
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,
             EntryPoint = "UFS_GetRefTypeTypeTree")]
-        public static extern ReturnCode GetRefTypeTypeTree(SerializedFileHandle handle, [MarshalAs(UnmanagedType.LPStr)] string className,
-            [MarshalAs(UnmanagedType.LPStr)] string namespaceName, [MarshalAs(UnmanagedType.LPStr)] string assemblyName, out TypeTreeHandle typeTree);
+        public static extern ReturnCode GetRefTypeTypeTree(SerializedFileHandle handle, [MarshalAs(UnmanagedType.LPUTF8Str)] string className,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string namespaceName, [MarshalAs(UnmanagedType.LPUTF8Str)] string assemblyName, out TypeTreeHandle typeTree);
 
         [DllImport("UnityFileSystemApi",
             CallingConvention = CallingConvention.Cdecl,

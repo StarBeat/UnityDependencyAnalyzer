@@ -1,5 +1,8 @@
-﻿using AssetDependencyGraph;
+﻿using System.Runtime.InteropServices;
 using System.Text.Json;
+using AssetDependencyGraph;
+using UnityFileApi;
+UnityFileSystem.Init();
 
 switch (Environment.GetCommandLineArgs()[1])
 {
