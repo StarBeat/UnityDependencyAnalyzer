@@ -1,5 +1,4 @@
 using MemoryPack;
-using Sirenix.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -469,19 +468,25 @@ namespace AssetDependencyGraph
                 }
 
                 var fullPath = dependAssetId.Path;
-                if (IsGuid(fullPath))
+                var pathIsGuid = IsGuid(fullPath);
+                if (pathIsGuid)
                 {
                     fullPath = GUIDToPath(fullPath);
                 }
                 var obj = AssetDatabase.LoadMainAssetAtPath(fullPath);
                 if(obj == null)
                 {
+                    if (!pathIsGuid)
+                    {
+                        Debug.Log($"{dependAssetId.Path} 可能已经删除");
+                    }
                     continue;
                 }
                 Node dependGraphNode = CreateNode(assetGroup, dependAssetNode, obj, false);
 
                 if (!assetGroup.AssetGraphNodes.Contains(dependGraphNode))
                 {
+                   
                     dependGraphNode.userData = depth;
                 }
 
@@ -560,13 +565,18 @@ namespace AssetDependencyGraph
                     continue;
                 }
                 var fullPath = dependAssetId.Path;
-                if (IsGuid(fullPath))
+                var pathIsGuid = IsGuid(fullPath);
+                if (pathIsGuid)
                 {
                     fullPath = GUIDToPath(fullPath);
                 }
                 var obj = AssetDatabase.LoadMainAssetAtPath(fullPath);
                 if (obj == null)
                 {
+                    if (!pathIsGuid)
+                    {
+                        Debug.Log($"{dependAssetId.Path} 可能已经删除");
+                    }
                     continue;
                 }
                 Node dependentGraphNode = CreateNode(assetGroup, dependAssetNode, obj, false);
@@ -785,11 +795,12 @@ namespace AssetDependencyGraph
                 objNode.extensionContainer.Add(typeContainer);
                 objNode.RegisterCallback<FocusInEvent>(e =>
                 {
+                    Debug.Log("FocusInEvent");
                 });
 
                 objNode.RegisterCallback<FocusOutEvent>(e =>
                 {
-
+                    Debug.Log("FocusOutEvent");
                 });
 
                 #region Node Icon, replaced with color 
