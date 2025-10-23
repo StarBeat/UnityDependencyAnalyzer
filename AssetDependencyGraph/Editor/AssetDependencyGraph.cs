@@ -2,6 +2,7 @@ using MemoryPack;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEditor.UIElements;
@@ -137,6 +138,27 @@ namespace AssetDependencyGraph
             return AssetDatabase.AssetPathToGUID(path);
         }
 
+        private static int GetRefCountByGUID(string guid)
+        {
+            var path = GUIDToPath(guid);
+            if (string.IsNullOrEmpty(path))
+            {
+                return 0;
+            }
+
+            if(path2NodeIdDic == null || assetId2NodeDic == null)
+            {
+                return 0;
+            }
+
+            if(path2NodeIdDic.TryGetValue(path, out var id) && assetId2NodeDic.TryGetValue(id, out var assetNode))
+            {
+                return assetNode.DependentSet.Count(n => n.AssetType != "Folder");
+            }
+
+            return 0;
+        }
+
         void ResolveDependency()
         {
             System.Diagnostics.Stopwatch stopwatch = new();
@@ -249,8 +271,14 @@ namespace AssetDependencyGraph
             {
                 text = "分析或更新引用"
             });
-
-            var ts = new ToolbarSearchField();
+            toolbar.Add(new Button(() =>
+            {
+                AssetRefCountView.HookAssetViewer(GetRefCountByGUID);
+            })
+            { 
+                text  = "在 Project 面板显示被引用",
+            });
+           var ts = new ToolbarSearchField();
             ts.RegisterValueChangedCallback(x =>
             {
                 if (string.IsNullOrEmpty(x.newValue))
